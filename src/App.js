@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import CameraSnap from './CameraSnap';
+import PhotoBooth from './PhotoBooth';
 
 function App() {
   return (
@@ -8,7 +8,7 @@ function App() {
       <header className="text-center p-4">
         <p className="display-3">Foto Booth</p>
       </header>
-      <CameraSnap />
+      <PhotoBooth width={500} />
     </div>
   );
 }

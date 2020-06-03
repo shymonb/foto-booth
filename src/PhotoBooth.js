@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import PropTypes from 'prop-types'
 
-import './CameraSnap.css';
+import './PhotoBooth.css';
 
-const CameraSnap = ({ width = 320 }) => {
+const PhotoBooth = ({ width = 320 }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const photoRef = useRef(null);
@@ -83,22 +83,27 @@ const CameraSnap = ({ width = 320 }) => {
   }, []);
 
   return (
-    <>
-      <div className="camera">
-        <video id="video" ref={videoRef} onCanPlay={handleCanPlay}>Video stream not available.</video>
-        <button id="startbutton" onClick={handleTakePicture}>Take photo</button>
+    <div className="d-flex justify-content-center photo-booth">
+      <div className="camera  position-relative">
+        <video ref={videoRef} onCanPlay={handleCanPlay}>Video stream not available.</video>
+        <canvas className="photo-booth-overlay">Ala ma kota</canvas>
+        <div className="photo-booth-tools">
+          <button className="m-3 btn btn-primary" onClick={handleTakePicture}>Take photo</button>
+        </div>
       </div>
-      <canvas id="canvas" ref={canvasRef}>
+      <canvas className="d-none" ref={canvasRef}>
       </canvas>
-      <div className="output">
-        <img id="photo" alt="The screen capture will appear in this box." ref={photoRef} />
+      <div className="photo-booth-output">
+        <img alt="The screen capture will appear in this box." ref={photoRef} />
       </div>
-    </>
+    </div>
   )
 }
 
-CameraSnap.propTypes = {
+PhotoBooth.propTypes = {
   width: PropTypes.number,
+
 }
 
-export default CameraSnap
+export default PhotoBooth;
+
