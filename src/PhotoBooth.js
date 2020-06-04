@@ -3,12 +3,15 @@ import PropTypes from 'prop-types'
 
 import './PhotoBooth.css';
 
-const PhotoBooth = ({ width = 320 }) => {
+const isNumber = value => typeof value === 'number' && value === value && value !== Infinity && value !== -Infinity;
+
+const PhotoBooth = ({ viewportWidth = 320, cropTop, cropLeft, cropWidth, cropHeight, cropBottom, cropRight, cropRatio }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
   const photoRef = useRef(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [height, setHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const clearPhoto = useCallback(() => {
     const canvas = canvasRef.current;
@@ -34,33 +37,63 @@ const PhotoBooth = ({ width = 320 }) => {
     }
 
     const context = canvas.getContext('2d');
-    if (width && height) {
-      canvas.width = width;
-      canvas.height = height;
-      context.drawImage(videoRef.current, 0, 0, width, height);
+    if (viewportWidth && viewportHeight) {
+      canvas.width = viewportWidth;
+      canvas.height = viewportHeight;
+      context.drawImage(videoRef.current, 0, 0, viewportWidth, viewportHeight);
 
       const data = canvas.toDataURL('image/png');
       photo.setAttribute('src', data);
     } else {
       clearPhoto();
     }
-  }, [width, height, clearPhoto]);
+  }, [viewportWidth, viewportHeight, clearPhoto]);
+
+  const createOverlay = useCallback((vw, vh) => {
+    const canvas = overlayCanvasRef.current;
+    const context = canvas.getContext('2d');
+
+    const w = (isNumber(cropWidth) && cropWidth)
+      || (isNumber(cropRight) && isNumber(cropLeft) && (cropRight - cropLeft))
+      || (isNumber(cropHeight) && isNumber(cropRatio) && (cropHeight * cropRatio));
+
+    const h = (isNumber(cropHeight) && cropHeight)
+      || (isNumber(cropBottom) && isNumber(cropTop) && (cropBottom - cropTop))
+      || (isNumber(cropWidth) && isNumber(cropRatio) && (cropWidth * cropRatio));
+
+
+    const x = (isNumber(cropLeft) && cropLeft)
+      || (isNumber(cropRight) && isNumber(w) && (cropRight - w));
+
+    const y = (isNumber(cropTop) && cropTop)
+      || (isNumber(cropBottom) && isNumber(h) && (cropBottom - h));
+
+    // const y = cropTop || (cropBottom - h);
+    console.log(x, y, w, h);
+    console.log(vw * x, vh * y, vw * w, vh * h);
+    // const r = viewportHeight / viewportWidth;
+    // context.clearRect(viewportWidth * x, viewportHeight * y, viewportWidth * w, viewportHeight * h);
+    context.strokeStyle = 'green';
+    context.strokeRect(viewportWidth * x, viewportHeight * y, viewportWidth * w, viewportHeight * h);
+    // context.strokeRect(20, 10, 160, 100);
+  }, [cropLeft, cropRight, cropTop, cropBottom, cropWidth, cropHeight, cropRatio]);
 
   const handleCanPlay = useCallback(() => {
     if (!isStreaming) {
-      const h = videoRef.current?.videoHeight / (videoRef.current?.videoWidth / width);
+      const h = videoRef.current?.videoHeight / (videoRef.current?.videoWidth / viewportWidth);
       if (videoRef.current) {
-        videoRef.current.setAttribute('width', width);
+        videoRef.current.setAttribute('width', viewportWidth);
         videoRef.current.setAttribute('height', h);
       }
       if (canvasRef.current) {
-        canvasRef.current.setAttribute('width', width);
+        canvasRef.current.setAttribute('width', viewportWidth);
         canvasRef.current.setAttribute('height', h);
       }
       setIsStreaming(true);
-      setHeight(h);
+      setViewportHeight(h);
+      createOverlay(viewportWidth, h);
     }
-  }, [width, isStreaming, setIsStreaming, setHeight]);
+  }, [viewportWidth, isStreaming, setIsStreaming, setViewportHeight]);
 
   const handleTakePicture = useCallback((ev) => {
     takePicture();
@@ -84,9 +117,9 @@ const PhotoBooth = ({ width = 320 }) => {
 
   return (
     <div className="d-flex justify-content-center photo-booth">
-      <div className="camera  position-relative">
+      <div className="camera position-relative">
         <video ref={videoRef} onCanPlay={handleCanPlay}>Video stream not available.</video>
-        <canvas className="photo-booth-overlay">Ala ma kota</canvas>
+        <canvas className="photo-booth-overlay" ref={overlayCanvasRef} />
         <div className="photo-booth-tools">
           <button className="m-3 btn btn-primary" onClick={handleTakePicture}>Take photo</button>
         </div>
@@ -101,8 +134,15 @@ const PhotoBooth = ({ width = 320 }) => {
 }
 
 PhotoBooth.propTypes = {
+  viewportWidth: PropTypes.number,
   width: PropTypes.number,
-
+  cropTop: PropTypes.number,
+  cropLeft: PropTypes.number,
+  cropBottom: PropTypes.number,
+  cropRight: PropTypes.number,
+  cropWidth: PropTypes.number,
+  cropHeight: PropTypes.number,
+  cropRatio: PropTypes.number,
 }
 
 export default PhotoBooth;
