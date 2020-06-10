@@ -10,9 +10,9 @@ function App() {
       </header>
       <PhotoBooth
         viewportWidth={500}
-        cropTop={0}
-        cropLeft={0.15}
-        cropRatio={0.56}
+        cropTop="top"
+        cropLeft="center"
+        cropRatio={0.75}
         cropHeight={1}
       />
     </div>

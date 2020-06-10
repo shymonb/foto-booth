@@ -23,6 +23,7 @@ const PhotoBooth = ({
   const photoRef = useRef(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [crop, setCrop] = useState({ x: 0, y: 0, w: 0, h: 0 });
 
   const clearPhoto = useCallback(() => {
     const canvas = canvasRef.current;
@@ -60,48 +61,68 @@ const PhotoBooth = ({
     }
   }, [viewportWidth, viewportHeight, clearPhoto]);
 
-  const createOverlay = useCallback(
+  const calculateCrop = useCallback(
     (vw, vh) => {
-      const canvas = overlayCanvasRef.current;
-      const context = canvas.getContext("2d");
-
-      let w = 0,
-        h = 0;
+      let cw = 0,
+        ch = 0;
       if (isNumber(cropWidth) && isNumber(cropHeight)) {
-        w = cropWidth;
-        h = cropHeight;
+        cw = cropWidth * vw;
+        ch = cropHeight * vh;
       } else if (
         isNumber(cropRatio) &&
         (isNumber(cropWidth) || isNumber(cropHeight))
       ) {
-        w = isNumber(cropWidth)
-          ? cropWidth
-          : ((isNumber(cropHeight) && cropHeight) || 0) * cropRatio;
-        h = isNumber(cropHeight)
-          ? cropHeight
-          : ((isNumber(cropWidth) && cropWidth) || 0) * cropRatio;
+        cw = isNumber(cropWidth)
+          ? cropWidth * vw
+          : cropRatio * (cropHeight * vh);
+        ch = isNumber(cropHeight)
+          ? cropHeight * vh
+          : cropRatio * (cropWidth * vw);
       }
 
-      const x = isNumber(cropLeft) && cropLeft;
+      let cx = 0;
+      if (isNumber(cropLeft)) {
+        cx = cropLeft * vw;
+      } else {
+        const xvals = {
+          left: 0,
+          center: vw / 2 - cw / 2,
+          right: vw - cw,
+        };
+        cx = xvals[cropLeft?.toLowerCase()] || 0;
+      }
 
-      const y = isNumber(cropTop) && cropTop;
+      let cy = 0;
+      if (isNumber(cropTop)) {
+        cy = cropTop * vh;
+      } else {
+        const yvals = {
+          top: 0,
+          center: vh / 2 - ch / 2,
+          bottom: vh - ch,
+        };
+        cy = yvals[cropTop?.toLowerCase()] || 0;
+      }
 
-      const cx = vw * x;
-      const cy = vh * y;
-      const cw = w === 0 ? vh * 0.75 : vw * w;
-      const ch = h === 0 ? vh : vh * h;
-
-      console.log(vw, vh);
-      console.log(x, y, w, h);
-      console.log(cx, cy, cw, ch);
-      context.strokeStyle = "green";
-      context.strokeRect(cx, cy, cw, ch);
-      // context.strokeRect(20, 10, 160, 100);
-      // context.strokeStyle = "red";
-      // context.strokeRect(0, 0, 500, 375);
+      setCrop({ x: cx, y: cy, w: cw, h: ch });
     },
-    [cropWidth, cropHeight, cropRatio, cropLeft, cropTop]
+    [cropWidth, cropHeight, cropRatio, cropLeft, cropTop, setCrop]
   );
+
+  useEffect(() => {
+    const canvas = overlayCanvasRef.current;
+    const context = canvas.getContext("2d");
+
+    context.fillStyle = "rgba(0,0,0,0.4)";
+    context.fillRect(0, 0, viewportWidth, viewportHeight);
+    context.clearRect(crop.x, crop.y, crop.w, crop.h);
+
+    context.strokeStyle = "black";
+    context.strokeRect(0.5, 0.5, viewportWidth, viewportHeight);
+
+    context.strokeStyle = "white";
+    context.strokeRect(crop.x + 0.5, crop.y + 0.5, crop.w - 1, crop.h - 1);
+  }, [crop, viewportHeight, viewportWidth]);
 
   const handleCanPlay = useCallback(() => {
     if (!isStreaming) {
@@ -131,9 +152,9 @@ const PhotoBooth = ({
 
   useEffect(() => {
     if (isStreaming && viewportWidth > 0 && viewportHeight > 0) {
-      createOverlay(viewportWidth, viewportHeight);
+      calculateCrop(viewportWidth, viewportHeight);
     }
-  }, [viewportWidth, viewportHeight, isStreaming, createOverlay]);
+  }, [viewportWidth, viewportHeight, isStreaming, calculateCrop]);
 
   useEffect(() => {
     const startStreaming = async () => {
@@ -174,7 +195,13 @@ const PhotoBooth = ({
       </div>
       <canvas className="d-none" ref={canvasRef}></canvas>
       <div className="photo-booth-output">
-        <img alt="The screen capture will appear in this box." ref={photoRef} />
+        <img
+          alt="The screen capture will appear in this box."
+          ref={photoRef}
+          width={crop.w}
+          height={crop.h}
+          className="d-inline-block"
+        />
       </div>
     </div>
   );
@@ -183,10 +210,8 @@ const PhotoBooth = ({
 PhotoBooth.propTypes = {
   viewportWidth: PropTypes.number,
   width: PropTypes.number,
-  cropTop: PropTypes.number,
-  cropLeft: PropTypes.number,
-  cropBottom: PropTypes.number,
-  cropRight: PropTypes.number,
+  cropTop: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  cropLeft: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   cropWidth: PropTypes.number,
   cropHeight: PropTypes.number,
   cropRatio: PropTypes.number,
