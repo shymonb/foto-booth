@@ -1,7 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useReducer } from "react";
 import PropTypes from "prop-types";
+import { MdPhotoCamera } from "react-icons/md";
 
 import "./PhotoBooth.css";
+
+const ACTION_CROP_CHANGED = "crop_changed";
+const ACTION_VIEWPORT_CHANGED = "viewport_changed";
+const ACTION_STREAMING_STARTED = "streaming_started";
 
 const isNumber = (value) =>
   typeof value === "number" &&
@@ -9,8 +14,41 @@ const isNumber = (value) =>
   value !== Infinity &&
   value !== -Infinity;
 
+const reducer = (state, action) => {
+  switch (action.type) {
+    case ACTION_CROP_CHANGED:
+      return {
+        ...state,
+        crop: {
+          x: action.x,
+          y: action.y,
+          w: action.w,
+          h: action.h,
+        },
+      };
+    case ACTION_STREAMING_STARTED:
+      return {
+        ...state,
+        isStreaming: true,
+        viewport: action.viewport,
+        video: action.video,
+        crop: action.crop,
+      };
+    case ACTION_VIEWPORT_CHANGED:
+      return {
+        ...state,
+        viewport: {
+          width: action.width,
+          height: action.height,
+        },
+      };
+    default:
+      throw new Error("Unknown action");
+  }
+};
+
 const PhotoBooth = ({
-  viewportWidth = 320,
+  width = 320,
   cropTop,
   cropLeft,
   cropWidth,
@@ -21,9 +59,16 @@ const PhotoBooth = ({
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
   const photoRef = useRef(null);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [crop, setCrop] = useState({ x: 0, y: 0, w: 0, h: 0 });
+
+  const initialCropWidth = width / 3;
+  const initialHeight = initialCropWidth * 1.7;
+
+  const [state, dispatch] = useReducer(reducer, {
+    isStreaming: false,
+    crop: { x: width / 4, y: 0, w: width / 2, h: initialHeight },
+    viewport: { w: width, h: initialHeight },
+    video: { w: width, h: 0 },
+  });
 
   const clearPhoto = useCallback(() => {
     const canvas = canvasRef.current;
@@ -48,18 +93,19 @@ const PhotoBooth = ({
       return;
     }
 
+    const { viewport } = state;
     const context = canvas.getContext("2d");
-    if (viewportWidth && viewportHeight) {
-      canvas.width = viewportWidth;
-      canvas.height = viewportHeight;
-      context.drawImage(videoRef.current, 0, 0, viewportWidth, viewportHeight);
+    if (viewport.w && viewport.h) {
+      canvas.width = viewport.w;
+      canvas.height = viewport.h;
+      context.drawImage(videoRef.current, 0, 0, viewport.w, viewport.h);
 
       const data = canvas.toDataURL("image/png");
       photo.setAttribute("src", data);
     } else {
       clearPhoto();
     }
-  }, [viewportWidth, viewportHeight, clearPhoto]);
+  }, [state, clearPhoto]);
 
   const calculateCrop = useCallback(
     (vw, vh) => {
@@ -104,43 +150,58 @@ const PhotoBooth = ({
         cy = yvals[cropTop?.toLowerCase()] || 0;
       }
 
-      setCrop({ x: cx, y: cy, w: cw, h: ch });
+      // dispatch({ type: ACTION_CROP_CHANGED, x: cx, y: cy, w: cw, h: ch });
+      return { x: cx, y: cy, w: cw, h: ch };
     },
-    [cropWidth, cropHeight, cropRatio, cropLeft, cropTop, setCrop]
+    [cropWidth, cropHeight, cropRatio, cropLeft, cropTop]
   );
 
   useEffect(() => {
+    console.log("effect draw overlay");
     const canvas = overlayCanvasRef.current;
     const context = canvas.getContext("2d");
 
-    context.fillStyle = "rgba(0,0,0,0.4)";
-    context.fillRect(0, 0, viewportWidth, viewportHeight);
+    const { crop, viewport } = state;
+
+    context.fillStyle = "rgba(0,0,0,0.5)";
+    context.fillRect(0, 0, viewport.w, viewport.h);
     context.clearRect(crop.x, crop.y, crop.w, crop.h);
 
     context.strokeStyle = "black";
-    context.strokeRect(0.5, 0.5, viewportWidth, viewportHeight);
+    context.strokeRect(0.5, 0.5, viewport.w, viewport.h);
 
     context.strokeStyle = "white";
     context.strokeRect(crop.x + 0.5, crop.y + 0.5, crop.w - 1, crop.h - 1);
-  }, [crop, viewportHeight, viewportWidth]);
+  }, [state, state.viewport]);
 
   const handleCanPlay = useCallback(() => {
-    if (!isStreaming) {
+    if (!state.isStreaming) {
+      console.log(
+        "video size: ",
+        videoRef.current?.videoHeight,
+        videoRef.current?.videoWidth
+      );
       const h =
-        videoRef.current?.videoHeight /
-        (videoRef.current?.videoWidth / viewportWidth);
+        videoRef.current?.videoHeight / (videoRef.current?.videoWidth / width);
       if (videoRef.current) {
-        videoRef.current.setAttribute("width", viewportWidth);
+        videoRef.current.setAttribute("width", width);
         videoRef.current.setAttribute("height", h);
       }
       if (canvasRef.current) {
-        canvasRef.current.setAttribute("width", viewportWidth);
+        canvasRef.current.setAttribute("width", width);
         canvasRef.current.setAttribute("height", h);
       }
-      setIsStreaming(true);
-      setViewportHeight(h);
+      dispatch({
+        type: ACTION_STREAMING_STARTED,
+        viewport: { w: width, h },
+        video: {
+          w: videoRef.current?.videoWidth,
+          h: videoRef.current?.videoHeight,
+        },
+        crop: calculateCrop(width, h),
+      });
     }
-  }, [isStreaming, viewportWidth]);
+  }, [calculateCrop, state.isStreaming, width]);
 
   const handleTakePicture = useCallback(
     (ev) => {
@@ -151,12 +212,7 @@ const PhotoBooth = ({
   );
 
   useEffect(() => {
-    if (isStreaming && viewportWidth > 0 && viewportHeight > 0) {
-      calculateCrop(viewportWidth, viewportHeight);
-    }
-  }, [viewportWidth, viewportHeight, isStreaming, calculateCrop]);
-
-  useEffect(() => {
+    console.log("effect start streaming");
     const startStreaming = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -174,7 +230,8 @@ const PhotoBooth = ({
     startStreaming();
   }, []);
 
-  console.log("Render ", viewportWidth, viewportHeight);
+  const { viewport, crop } = state;
+  console.log("Render ", state);
   return (
     <div className="d-flex justify-content-center photo-booth">
       <div className="camera position-relative">
@@ -183,13 +240,13 @@ const PhotoBooth = ({
         </video>
         <canvas
           className="photo-booth-overlay"
-          width={viewportWidth}
-          height={viewportHeight}
+          width={viewport.w}
+          height={viewport.h}
           ref={overlayCanvasRef}
         />
         <div className="photo-booth-tools">
           <button className="m-3 btn btn-primary" onClick={handleTakePicture}>
-            Take photo
+            <MdPhotoCamera className="h4 mb-0" />
           </button>
         </div>
       </div>
@@ -208,7 +265,6 @@ const PhotoBooth = ({
 };
 
 PhotoBooth.propTypes = {
-  viewportWidth: PropTypes.number,
   width: PropTypes.number,
   cropTop: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   cropLeft: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),

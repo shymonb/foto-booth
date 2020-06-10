@@ -9,7 +9,7 @@ function App() {
         <p className="display-3">Foto Booth</p>
       </header>
       <PhotoBooth
-        viewportWidth={500}
+        width={500}
         cropTop="top"
         cropLeft="center"
         cropRatio={0.75}
