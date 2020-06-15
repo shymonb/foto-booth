@@ -1,8 +1,16 @@
-import React, { useEffect, useRef, useCallback, useReducer } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useCallback,
+  useReducer,
+  useImperativeHandle,
+} from "react";
 import PropTypes from "prop-types";
 
 const ACTION_VIEWPORT_CHANGED = "viewport_changed";
 const ACTION_STREAMING_STARTED = "streaming_started";
+const ACTION_SNAP_TAKEN = "snap_taken";
+const ACTION_SNAP_CLEARED = "snap_cleared";
 
 const isNumber = (value) =>
   typeof value === "number" &&
@@ -27,6 +35,16 @@ const reducer = (state, action) => {
           height: action.height,
         },
       };
+    case ACTION_SNAP_TAKEN:
+      return {
+        ...state,
+        snapData: action.data,
+      };
+    case ACTION_SNAP_CLEARED:
+      return {
+        ...state,
+        snapData: null,
+      };
     default:
       throw new Error("Unknown action");
   }
@@ -37,13 +55,13 @@ const CamPhoto = React.forwardRef(
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const overlayCanvasRef = useRef(null);
-    const photoRef = useRef(null);
 
     const initialCropWidth = width / 3;
     const initialHeight = initialCropWidth * 1.7;
 
     const [state, dispatch] = useReducer(reducer, {
       isStreaming: false,
+      snapData: null,
       viewport: { w: width, h: initialHeight },
       video: { w: width, h: 0 },
     });
@@ -96,26 +114,10 @@ const CamPhoto = React.forwardRef(
       [cropWidth, cropHeight, cropRatio, cropLeft, cropTop]
     );
 
-    const clearPhoto = useCallback(() => {
+    const snap = useCallback(() => {
       const canvas = canvasRef.current;
-      const photo = photoRef.current;
-      if (!canvas || !photo) {
-        console.error("Ref for canvas or photo are not set", canvas, photo);
-        return;
-      }
-      const context = canvas.getContext("2d");
-      context.fillStyle = "#AAA";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-
-      const data = canvas.toDataURL("image/jpeg");
-      photo.setAttribute("src", data);
-    }, []);
-
-    const takePicture = useCallback(() => {
-      const canvas = canvasRef.current;
-      const photo = photoRef.current;
-      if (!canvas || !photo) {
-        console.error("Ref for canvas or photo are not set", canvas, photo);
+      if (!canvas) {
+        console.error("Ref for canvas or photo are not set", canvas);
         return;
       }
 
@@ -133,11 +135,16 @@ const CamPhoto = React.forwardRef(
         context.drawImage(videoRef.current, x, y, w, h, 0, 0, w, h);
 
         const data = canvas.toDataURL("image/jpeg");
-        photo.setAttribute("src", data);
+        dispatch({ type: ACTION_SNAP_TAKEN, data });
       } else {
-        clearPhoto();
+        // clearPhoto();
+        dispatch({ type: ACTION_SNAP_CLEARED });
       }
-    }, [state, calculateCrop, clearPhoto]);
+    }, [state, calculateCrop]);
+
+    useImperativeHandle(ref, () => ({
+      snap,
+    }));
 
     // draw overlay
     useEffect(() => {
@@ -148,12 +155,10 @@ const CamPhoto = React.forwardRef(
       const { viewport } = state;
       const crop = calculateCrop(viewport.w, viewport.h);
 
+      context.clearRect(0, 0, viewport.w, viewport.h);
       context.fillStyle = "rgba(0,0,0,0.5)";
       context.fillRect(0, 0, viewport.w, viewport.h);
       context.clearRect(crop.x, crop.y, crop.w, crop.h);
-
-      // context.strokeStyle = "black";
-      // context.strokeRect(0.5, 0.5, viewport.w, viewport.h);
 
       context.strokeStyle = "white";
       context.strokeRect(crop.x + 0.5, crop.y + 0.5, crop.w - 1, crop.h - 1);
@@ -164,7 +169,7 @@ const CamPhoto = React.forwardRef(
         const videoWidth = videoRef.current?.videoWidth;
         const videoHeight = videoRef.current?.videoHeight;
         console.log("video size: ", videoWidth, videoHeight);
-        const h = videoHeight / (videoWidth / width);
+        const h = Math.floor(videoHeight / (videoWidth / width));
         dispatch({
           type: ACTION_STREAMING_STARTED,
           viewport: { w: width, h },
@@ -175,14 +180,6 @@ const CamPhoto = React.forwardRef(
         });
       }
     }, [state.isStreaming, width]);
-
-    const handleTakePicture = useCallback(
-      (ev) => {
-        takePicture();
-        ev.preventDefault();
-      },
-      [takePicture]
-    );
 
     useEffect(() => {
       console.log("effect start streaming");
@@ -210,7 +207,7 @@ const CamPhoto = React.forwardRef(
     const crop = calculateCrop(viewport.w, viewport.h);
     console.log("Render ", state);
     return (
-      <div className="d-flex justify-content-center photo-booth" ref={ref}>
+      <div className="d-flex justify-content-center photo-snap" ref={ref}>
         <div className="camera position-relative">
           <video
             ref={videoRef}
@@ -221,16 +218,11 @@ const CamPhoto = React.forwardRef(
             Video stream not available.
           </video>
           <canvas
-            className="photo-booth-overlay"
+            className="photo-snap-overlay"
             ref={overlayCanvasRef}
             width={viewport.w}
             height={viewport.h}
           />
-          {/* <div className="photo-booth-tools">
-          <button className="m-3 btn btn-primary" onClick={handleTakePicture}>
-            <MdPhotoCamera className="h4 mb-0" />
-          </button>
-        </div> */}
         </div>
         <canvas
           className="d-none"
@@ -238,13 +230,19 @@ const CamPhoto = React.forwardRef(
           width={video.w}
           height={video.h}
         ></canvas>
-        <div className="photo-booth-output">
+        <div className="photo-snap-output pl-3">
           <img
             alt="The screen capture will appear in this box."
-            ref={photoRef}
+            src={state.snapData}
             width={crop.w}
             height={crop.h}
-            className="d-inline-block ml-3"
+            className={`${state.snapData ? "d-inline-block" : "d-none"}`}
+          />
+          <div
+            className={`${
+              state.snapData ? "d-none" : "d-inline-block"
+            } bg-white`}
+            style={{ width: crop.w, height: crop.h }}
           />
         </div>
       </div>

@@ -1,13 +1,24 @@
-.photo-booth-overlay {
+.photo-snap-overlay {
   position: absolute;
   top: 0;
   left: 0;
 }
 
-.photo-snap-tools {
+.photo-snap-top-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.photo-snap-bottom-left {
   position: absolute;
   bottom: 0;
   left: 0;
-  /* right: 0; */
-  text-align: right;
+}
+
+/* .photo-snap-file-selector {
+  background-color: rgb(0, 123, 255);
+} */
+.photo-snap-uploader {
+  box-sizing: border-box;
 }
