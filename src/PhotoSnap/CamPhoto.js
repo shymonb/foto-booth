@@ -6,17 +6,12 @@ import React, {
   useImperativeHandle,
 } from "react";
 import PropTypes from "prop-types";
+import useCrop from "./useCrop";
 
 const ACTION_VIEWPORT_CHANGED = "viewport_changed";
 const ACTION_STREAMING_STARTED = "streaming_started";
 const ACTION_SNAP_TAKEN = "snap_taken";
 const ACTION_SNAP_CLEARED = "snap_cleared";
-
-const isNumber = (value) =>
-  typeof value === "number" &&
-  value === value &&
-  value !== Infinity &&
-  value !== -Infinity;
 
 const reducer = (state, action) => {
   switch (action.type) {
@@ -66,52 +61,24 @@ const CamPhoto = React.forwardRef(
       video: { w: width, h: 0 },
     });
 
-    const calculateCrop = useCallback(
-      (vw, vh) => {
-        let cw = 0,
-          ch = 0;
-        if (isNumber(cropWidth) && isNumber(cropHeight)) {
-          cw = cropWidth * vw;
-          ch = cropHeight * vh;
-        } else if (
-          isNumber(cropRatio) &&
-          (isNumber(cropWidth) || isNumber(cropHeight))
-        ) {
-          cw = isNumber(cropWidth)
-            ? cropWidth * vw
-            : cropRatio * (cropHeight * vh);
-          ch = isNumber(cropHeight)
-            ? cropHeight * vh
-            : cropRatio * (cropWidth * vw);
-        }
-
-        let cx = 0;
-        if (isNumber(cropLeft)) {
-          cx = cropLeft * vw;
-        } else {
-          const xvals = {
-            left: 0,
-            center: vw / 2 - cw / 2,
-            right: vw - cw,
-          };
-          cx = xvals[cropLeft?.toLowerCase()] || 0;
-        }
-
-        let cy = 0;
-        if (isNumber(cropTop)) {
-          cy = cropTop * vh;
-        } else {
-          const yvals = {
-            top: 0,
-            center: vh / 2 - ch / 2,
-            bottom: vh - ch,
-          };
-          cy = yvals[cropTop?.toLowerCase()] || 0;
-        }
-
-        return { x: cx, y: cy, w: cw, h: ch };
-      },
-      [cropWidth, cropHeight, cropRatio, cropLeft, cropTop]
+    const { viewport, video } = state;
+    const crop = useCrop(
+      viewport.w,
+      viewport.h,
+      cropLeft,
+      cropTop,
+      cropWidth,
+      cropHeight,
+      cropRatio
+    );
+    const videoCrop = useCrop(
+      video.w,
+      video.h,
+      cropLeft,
+      cropTop,
+      cropWidth,
+      cropHeight,
+      cropRatio
     );
 
     const snap = useCallback(() => {
@@ -124,7 +91,7 @@ const CamPhoto = React.forwardRef(
       const { video } = state;
       const context = canvas.getContext("2d");
       if (video.w && video.h) {
-        const { x, y, w, h } = calculateCrop(video.w, video.h);
+        const { x, y, w, h } = videoCrop;
 
         const scale = window.devicePixelRatio; // Change to 1 on retina screens to see blurry canvas.
         canvas.width = Math.floor(w * scale);
@@ -137,10 +104,9 @@ const CamPhoto = React.forwardRef(
         const data = canvas.toDataURL("image/jpeg");
         dispatch({ type: ACTION_SNAP_TAKEN, data });
       } else {
-        // clearPhoto();
         dispatch({ type: ACTION_SNAP_CLEARED });
       }
-    }, [state, calculateCrop]);
+    }, [state, videoCrop]);
 
     useImperativeHandle(ref, () => ({
       snap,
@@ -152,8 +118,7 @@ const CamPhoto = React.forwardRef(
       const canvas = overlayCanvasRef.current;
       const context = canvas.getContext("2d");
 
-      const { viewport } = state;
-      const crop = calculateCrop(viewport.w, viewport.h);
+      // const { viewport } = state;
 
       context.clearRect(0, 0, viewport.w, viewport.h);
       context.fillStyle = "rgba(0,0,0,0.5)";
@@ -162,7 +127,16 @@ const CamPhoto = React.forwardRef(
 
       context.strokeStyle = "white";
       context.strokeRect(crop.x + 0.5, crop.y + 0.5, crop.w - 1, crop.h - 1);
-    }, [calculateCrop, state, state.viewport]);
+    }, [
+      crop.h,
+      crop.w,
+      crop.x,
+      crop.y,
+      state,
+      state.viewport,
+      viewport.h,
+      viewport.w,
+    ]);
 
     const handleCanPlay = useCallback(() => {
       if (!state.isStreaming) {
@@ -183,6 +157,7 @@ const CamPhoto = React.forwardRef(
 
     useEffect(() => {
       console.log("effect start streaming");
+      const videoElement = videoRef?.current;
       const startStreaming = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -192,23 +167,29 @@ const CamPhoto = React.forwardRef(
             },
             audio: false,
           });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play();
+          if (videoElement) {
+            videoElement.srcObject = stream;
+            videoElement.play();
           }
         } catch (err) {
           console.error("Failed to get user media", err);
         }
       };
       startStreaming();
+
+      return () => {
+        if (videoElement?.srcObject) {
+          videoElement.srcObject.getTracks().forEach((track) => {
+            track.stop();
+          });
+        }
+      };
     }, []);
 
-    const { viewport, video } = state;
-    const crop = calculateCrop(viewport.w, viewport.h);
     console.log("Render ", state);
     return (
-      <div className="d-flex justify-content-center photo-snap" ref={ref}>
-        <div className="camera position-relative">
+      <div className="d-flex justify-content-center" ref={ref}>
+        <div className="position-relative">
           <video
             ref={videoRef}
             onCanPlay={handleCanPlay}
