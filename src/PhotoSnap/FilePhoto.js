@@ -109,10 +109,17 @@ const FilePhoto = React.forwardRef(
 
         const data = canvas.toDataURL("image/jpeg");
         dispatch({ type: ACTION_SNAP_TAKEN, data });
+        return {
+          width: w,
+          height: h,
+          previewWidth: crop.w,
+          previewHeight: crop.h,
+          data,
+        };
       } else {
         dispatch({ type: ACTION_SNAP_CLEARED });
       }
-    }, [imageCrop, state]);
+    }, [crop.h, crop.w, imageCrop, state]);
 
     useImperativeHandle(ref, () => ({
       snap,
@@ -128,7 +135,6 @@ const FilePhoto = React.forwardRef(
         console.error("Canvas ref is not set");
         return;
       }
-      console.log("image file has changed", file);
 
       const url = URL.createObjectURL(file);
       const img = new Image();
@@ -166,7 +172,6 @@ const FilePhoto = React.forwardRef(
 
     // draw overlay
     useEffect(() => {
-      console.log("effect draw overlay");
       const canvas = overlayCanvasRef.current;
       const context = canvas.getContext("2d");
 
@@ -189,45 +194,29 @@ const FilePhoto = React.forwardRef(
       viewport.w,
     ]);
 
-    console.log("filePhoto: ", state);
     return (
-      <div className="d-flex">
-        <div
-          ref={ref}
-          style={{ width: viewport.w, height: viewport.h }}
-          className="text-dark photo-snap-filebg "
-        >
+      <div
+        ref={ref}
+        style={{ width: viewport.w, height: viewport.h }}
+        className="text-dark photo-snap-filebg position-relative"
+      >
+        {image?.url ? (
           <img
             ref={imageRef}
             src={image.url}
             width={image.pw}
             height={image.ph}
-            alt="obrazek"
+            alt=""
             className="position-relative"
             style={{ top: image.py, left: image.px }}
           />
-          <canvas
-            className="photo-snap-overlay"
-            ref={overlayCanvasRef}
-            width={viewport.w}
-            height={viewport.h}
-          />
-        </div>
-        <div className="photo-snap-output pl-3">
-          <img
-            alt="The screen capture will appear in this box."
-            src={state.snapData}
-            width={crop.w}
-            height={crop.h}
-            className={`${state.snapData ? "d-inline-block" : "d-none"}`}
-          />
-          <div
-            className={`${
-              state.snapData ? "d-none" : "d-inline-block"
-            } bg-white`}
-            style={{ width: crop.w, height: crop.h }}
-          />
-        </div>
+        ) : null}
+        <canvas
+          className="photo-snap-overlay"
+          ref={overlayCanvasRef}
+          width={viewport.w}
+          height={viewport.h}
+        ></canvas>
         <canvas className="border d-none" ref={canvasRef}></canvas>
       </div>
     );

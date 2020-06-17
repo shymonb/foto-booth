@@ -4,6 +4,14 @@
   left: 0;
 }
 
+.photo-snap-output > .photo-snap-placeholder {
+  background-color: var(--gray);
+}
+
+.photo-snap-image-name {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
 .photo-snap-top-left {
   position: absolute;
   top: 0;
@@ -14,6 +22,12 @@
   position: absolute;
   bottom: 0;
   left: 0;
+}
+
+.photo-snap-bottom-right {
+  position: absolute;
+  bottom: 0;
+  right: 0;
 }
 
 .photo-snap-uploader {

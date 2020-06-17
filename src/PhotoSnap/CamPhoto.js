@@ -103,10 +103,17 @@ const CamPhoto = React.forwardRef(
 
         const data = canvas.toDataURL("image/jpeg");
         dispatch({ type: ACTION_SNAP_TAKEN, data });
+        return {
+          width: w,
+          height: h,
+          previewWidth: crop.w,
+          previewHeight: crop.h,
+          data,
+        };
       } else {
         dispatch({ type: ACTION_SNAP_CLEARED });
       }
-    }, [state, videoCrop]);
+    }, [crop.h, crop.w, state, videoCrop]);
 
     useImperativeHandle(ref, () => ({
       snap,
@@ -114,7 +121,6 @@ const CamPhoto = React.forwardRef(
 
     // draw overlay
     useEffect(() => {
-      console.log("effect draw overlay");
       const canvas = overlayCanvasRef.current;
       const context = canvas.getContext("2d");
 
@@ -142,7 +148,6 @@ const CamPhoto = React.forwardRef(
       if (!state.isStreaming) {
         const videoWidth = videoRef.current?.videoWidth;
         const videoHeight = videoRef.current?.videoHeight;
-        console.log("video size: ", videoWidth, videoHeight);
         const h = Math.floor(videoHeight / (videoWidth / width));
         dispatch({
           type: ACTION_STREAMING_STARTED,
@@ -156,7 +161,6 @@ const CamPhoto = React.forwardRef(
     }, [state.isStreaming, width]);
 
     useEffect(() => {
-      console.log("effect start streaming");
       const videoElement = videoRef?.current;
       const startStreaming = async () => {
         try {
@@ -186,46 +190,28 @@ const CamPhoto = React.forwardRef(
       };
     }, []);
 
-    console.log("Render ", state);
     return (
-      <div className="d-flex justify-content-center" ref={ref}>
-        <div className="position-relative">
-          <video
-            ref={videoRef}
-            onCanPlay={handleCanPlay}
-            width={viewport.w}
-            height={viewport.h}
-          >
-            Video stream not available.
-          </video>
-          <canvas
-            className="photo-snap-overlay"
-            ref={overlayCanvasRef}
-            width={viewport.w}
-            height={viewport.h}
-          />
-        </div>
+      <div className="position-relative" ref={ref}>
+        <video
+          ref={videoRef}
+          onCanPlay={handleCanPlay}
+          width={viewport.w}
+          height={viewport.h}
+        >
+          Video stream not available.
+        </video>
+        <canvas
+          className="photo-snap-overlay"
+          ref={overlayCanvasRef}
+          width={viewport.w}
+          height={viewport.h}
+        ></canvas>
         <canvas
           className="d-none"
           ref={canvasRef}
           width={video.w}
           height={video.h}
         ></canvas>
-        <div className="photo-snap-output pl-3">
-          <img
-            alt="The screen capture will appear in this box."
-            src={state.snapData}
-            width={crop.w}
-            height={crop.h}
-            className={`${state.snapData ? "d-inline-block" : "d-none"}`}
-          />
-          <div
-            className={`${
-              state.snapData ? "d-none" : "d-inline-block"
-            } bg-white`}
-            style={{ width: crop.w, height: crop.h }}
-          />
-        </div>
       </div>
     );
   }

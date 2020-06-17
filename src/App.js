@@ -4,6 +4,10 @@ import "./App.css";
 import PhotoSnap from "./PhotoSnap/PhotoSnap";
 
 function App() {
+  const handleSnap = (snap) => {
+    console.log("Image has been snapped: ", snap);
+  };
+
   return (
     <div className="">
       <header className="text-center p-4">
@@ -17,6 +21,7 @@ function App() {
           cropLeft="center"
           cropRatio={0.75}
           cropHeight={1}
+          onSnap={handleSnap}
         />
       </div>
     </div>
